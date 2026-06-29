@@ -45,3 +45,38 @@ def text_node_to_html_node(text_node: TextNode) -> LeafNode:
             return LeafNode("img", None, {"src": text_node.url, "alt": text_node.text})
         case _:
             raise Exception("text_type not supported")
+
+
+def split_nodes_delimiter(
+        old_nodes: list[TextNode], delimiter: str, text_type: TextType
+) -> list[TextNode]:
+    new_nodes = []
+
+    for node in old_nodes:
+        if not node.text_type == TextType.PLAIN:
+            new_nodes.append(node)
+        else:
+            num_delimiters = node.text.count(delimiter)
+
+            if num_delimiters == 0:
+                new_nodes.append(node)
+                continue
+
+            if not num_delimiters % 2 == 0:
+                raise Exception(f"closing {delimiter} not found.")
+
+            splits = node.text.split(delimiter)
+
+            sub_nodes = []
+
+            for i in range(len(splits)):
+                if splits[i] == "":
+                    continue
+                if i % 2 == 0:
+                    sub_nodes.append(TextNode(splits[i], node.text_type))
+                else:
+                    sub_nodes.append(TextNode(splits[i], text_type))
+
+            new_nodes.extend(sub_nodes)
+
+    return new_nodes
