@@ -6,7 +6,7 @@ class ParentNode(HTMLNode):
             self,
             tag: str | None,
             children: list["HTMLNode"] | None,
-            props: dict[str, str] | None = None,
+            props: dict[str, str | None] | None = None,
     ):
         super().__init__(tag, None, children, props)
 
