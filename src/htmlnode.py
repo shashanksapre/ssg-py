@@ -16,21 +16,12 @@ class HTMLNode:
 
     def props_to_html(self):
         if self.props is not None:
-            props_list = []
+            props_string = ""
             for key in self.props:
-                props_list.append(f"{key}={self.props[key]}")
-            return " ".join(props_list)
+                props_string += f' {key}="{self.props[key]}"'
+            return props_string
         else:
             return ""
 
     def __repr__(self) -> str:
-        rep = "HTMLNode("
-        if self.tag is not None:
-            rep += f", {self.tag}"
-        if self.value is not None:
-            rep += f", {self.value}"
-        if self.children is not None:
-            rep += f", {self.children}"
-        if self.props is not None:
-            rep += f", {self.props}"
-        return f"{rep})"
+        return f"HTMLNode({self.tag}, {self.value}, children: {self.children}, {self.props})"
