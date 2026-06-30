@@ -1,6 +1,6 @@
 import unittest
 
-from textnode import TextNode, TextType, split_nodes_image, split_nodes_link
+from textnode import TextNode, TextType, text_to_textnodes
 
 
 def types(nodes: list[TextNode]) -> list[TextType]:
@@ -11,312 +11,182 @@ def texts(nodes: list[TextNode]) -> list[str]:
     return [n.text for n in nodes]
 
 
-class TestSplitImagePassthrough(unittest.TestCase):
-    def test_empty_list_returns_empty(self):
-        self.assertEqual(split_nodes_image([]), [])
-
-    def test_plain_node_with_no_image_unchanged(self):
-        node = TextNode("just plain text", TextType.PLAIN)
-        result = split_nodes_image([node])
+class TestTextToTextNodesTrivial(unittest.TestCase):
+    def test_plain_text_only(self):
+        result = text_to_textnodes("just plain text")
         self.assertEqual(len(result), 1)
         self.assertEqual(result[0].text, "just plain text")
         self.assertEqual(result[0].text_type, TextType.PLAIN)
 
-    def test_plain_node_empty_text_unchanged(self):
-        node = TextNode("", TextType.PLAIN)
-        result = split_nodes_image([node])
+    def test_empty_string_returns_single_empty_plain_node(self):
+        result = text_to_textnodes("")
         self.assertEqual(len(result), 1)
         self.assertEqual(result[0].text, "")
-
-    def test_plain_node_containing_only_a_link_unchanged(self):
-        # extract_markdown_images requires the "!" prefix, so a node
-        # containing only link syntax (no images) must pass through whole.
-        node = TextNode("a [link](url) only", TextType.PLAIN)
-        result = split_nodes_image([node])
-        self.assertEqual(len(result), 1)
-        self.assertEqual(result[0].text, "a [link](url) only")
         self.assertEqual(result[0].text_type, TextType.PLAIN)
 
-    def test_bold_node_passes_through(self):
-        node = TextNode("![looks like an image](url)", TextType.BOLD)
-        result = split_nodes_image([node])
-        self.assertEqual(result, [node])
-
-    def test_italic_node_passes_through(self):
-        node = TextNode("![also looks like one](url)", TextType.ITALIC)
-        result = split_nodes_image([node])
-        self.assertEqual(result, [node])
-
-    def test_image_node_passes_through_unchanged(self):
-        node = TextNode("cat", TextType.IMAGE, "/cat.png")
-        result = split_nodes_image([node])
-        self.assertEqual(result, [node])
+    def test_whitespace_only_stays_plain(self):
+        result = text_to_textnodes("   ")
+        self.assertEqual(result, [TextNode("   ", TextType.PLAIN)])
 
 
-class TestSplitImageBasic(unittest.TestCase):
-    def test_image_in_middle(self):
-        node = TextNode("some text ![image](url.png) more text", TextType.PLAIN)
-        result = split_nodes_image([node])
-        self.assertEqual(texts(result), ["some text ", "image", " more text"])
-        self.assertEqual(
-            types(result), [TextType.PLAIN, TextType.IMAGE, TextType.PLAIN]
+class TestTextToTextNodesSingleType(unittest.TestCase):
+    def test_bold_only(self):
+        result = text_to_textnodes("**bold**")
+        self.assertEqual(result, [TextNode("bold", TextType.BOLD)])
+
+    def test_italic_only(self):
+        result = text_to_textnodes("_italic_")
+        self.assertEqual(result, [TextNode("italic", TextType.ITALIC)])
+
+    def test_code_only(self):
+        result = text_to_textnodes("`code`")
+        self.assertEqual(result, [TextNode("code", TextType.CODE)])
+
+    def test_image_only(self):
+        result = text_to_textnodes("![alt](url)")
+        self.assertEqual(result, [TextNode("alt", TextType.IMAGE, "url")])
+
+    def test_link_only(self):
+        result = text_to_textnodes("[text](url)")
+        self.assertEqual(result, [TextNode("text", TextType.LINK, "url")])
+
+
+class TestTextToTextNodesFullPipeline(unittest.TestCase):
+    def test_classic_reference_example(self):
+        text = (
+            "This is **text** with an _italic_ word and a `code block` "
+            "and an ![obi wan image](https://i.imgur.com/fJRm4Q4.jpeg) "
+            "and a [link](https://boot.dev)"
         )
-
-    def test_image_at_start(self):
-        node = TextNode("![image](url.png) and more text", TextType.PLAIN)
-        result = split_nodes_image([node])
-        self.assertEqual(texts(result), ["image", " and more text"])
-        self.assertEqual(types(result), [TextType.IMAGE, TextType.PLAIN])
-
-    def test_image_at_end(self):
-        node = TextNode("some text ![image](url.png)", TextType.PLAIN)
-        result = split_nodes_image([node])
-        self.assertEqual(texts(result), ["some text ", "image"])
-        self.assertEqual(types(result), [TextType.PLAIN, TextType.IMAGE])
-
-    def test_image_only_no_surrounding_text(self):
-        node = TextNode("![image](url.png)", TextType.PLAIN)
-        result = split_nodes_image([node])
-        self.assertEqual(len(result), 1)
-        self.assertEqual(result[0].text, "image")
-        self.assertEqual(result[0].text_type, TextType.IMAGE)
-        self.assertEqual(result[0].url, "url.png")
-
-    def test_image_node_url_preserved(self):
-        node = TextNode("![alt](https://example.com/a.png)", TextType.PLAIN)
-        result = split_nodes_image([node])
-        self.assertEqual(result[0].url, "https://example.com/a.png")
-
-
-class TestSplitImageMultiple(unittest.TestCase):
-    def test_two_images_with_reference_example(self):
-        node = TextNode(
-            "This is text with an ![image](https://i.imgur.com/zjjcJKZ.png) "
-            "and another ![second image](https://i.imgur.com/3elNhQu.png)",
-            TextType.PLAIN,
-        )
-        new_nodes = split_nodes_image([node])
+        result = text_to_textnodes(text)
         self.assertListEqual(
+            result,
             [
-                TextNode("This is text with an ", TextType.PLAIN),
-                TextNode("image", TextType.IMAGE, "https://i.imgur.com/zjjcJKZ.png"),
-                TextNode(" and another ", TextType.PLAIN),
+                TextNode("This is ", TextType.PLAIN),
+                TextNode("text", TextType.BOLD),
+                TextNode(" with an ", TextType.PLAIN),
+                TextNode("italic", TextType.ITALIC),
+                TextNode(" word and a ", TextType.PLAIN),
+                TextNode("code block", TextType.CODE),
+                TextNode(" and an ", TextType.PLAIN),
                 TextNode(
-                    "second image", TextType.IMAGE, "https://i.imgur.com/3elNhQu.png"
+                    "obi wan image", TextType.IMAGE, "https://i.imgur.com/fJRm4Q4.jpeg"
                 ),
-            ],
-            new_nodes,
-        )
-
-    def test_three_images_back_to_back_with_separators(self):
-        node = TextNode("![a](1) ![b](2) ![c](3)", TextType.PLAIN)
-        result = split_nodes_image([node])
-        self.assertEqual(texts(result), ["a", " ", "b", " ", "c"])
-        self.assertEqual(
-            types(result),
-            [
-                TextType.IMAGE,
-                TextType.PLAIN,
-                TextType.IMAGE,
-                TextType.PLAIN,
-                TextType.IMAGE,
+                TextNode(" and a ", TextType.PLAIN),
+                TextNode("link", TextType.LINK, "https://boot.dev"),
             ],
         )
 
-    def test_duplicate_image_markdown_both_extracted(self):
-        # Each occurrence is split off individually via str.split(..., 1),
-        # so identical alt/url pairs appearing twice both get extracted.
-        node = TextNode("![dup](u) text ![dup](u) more", TextType.PLAIN)
-        result = split_nodes_image([node])
-        self.assertEqual(texts(result), ["dup", " text ", "dup", " more"])
+    def test_bold_and_italic_together(self):
+        result = text_to_textnodes("**bold** _italic_")
+        self.assertEqual(texts(result), ["bold", " ", "italic"])
         self.assertEqual(
-            types(result),
-            [TextType.IMAGE, TextType.PLAIN, TextType.IMAGE, TextType.PLAIN],
+            types(result), [TextType.BOLD, TextType.PLAIN, TextType.ITALIC]
         )
 
-
-class TestSplitImageMixedList(unittest.TestCase):
-    def test_plain_image_nodes_interleaved_with_other_types(self):
-        nodes = [
-            TextNode("first ![a](u1) node", TextType.PLAIN),
-            TextNode("already bold", TextType.BOLD),
-            TextNode("second ![b](u2) node", TextType.PLAIN),
-        ]
-        result = split_nodes_image(nodes)
+    def test_multiple_of_each_type(self):
+        result = text_to_textnodes("**a** **b** _c_ _d_ `e` `f`")
         self.assertEqual(
-            texts(result),
-            ["first ", "a", " node", "already bold", "second ", "b", " node"],
+            texts(result), ["a", " ", "b", " ", "c", " ", "d", " ", "e", " ", "f"]
         )
         self.assertEqual(
             types(result),
             [
-                TextType.PLAIN,
-                TextType.IMAGE,
+                TextType.BOLD,
                 TextType.PLAIN,
                 TextType.BOLD,
                 TextType.PLAIN,
-                TextType.IMAGE,
+                TextType.ITALIC,
                 TextType.PLAIN,
+                TextType.ITALIC,
+                TextType.PLAIN,
+                TextType.CODE,
+                TextType.PLAIN,
+                TextType.CODE,
             ],
         )
 
-    def test_output_order_matches_input_order(self):
-        nodes = [
-            TextNode("![first](u1)", TextType.PLAIN),
-            TextNode("![second](u2)", TextType.PLAIN),
-        ]
-        result = split_nodes_image(nodes)
-        self.assertEqual(texts(result), ["first", "second"])
+    def test_image_and_link_together(self):
+        result = text_to_textnodes("![img](u1) [link](u2)")
+        self.assertEqual(texts(result), ["img", " ", "link"])
+        self.assertEqual(types(result), [TextType.IMAGE, TextType.PLAIN, TextType.LINK])
+        self.assertEqual(result[0].url, "u1")
+        self.assertEqual(result[2].url, "u2")
+
+    def test_output_order_follows_source_text_order(self):
+        # Even though the pipeline processes one syntax type at a time
+        # (code, then bold, then italic, then images, then links), the
+        # final node list still reflects left-to-right reading order.
+        result = text_to_textnodes("[link](u) **bold** `code` _em_ ![img](u2)")
+        self.assertEqual(types(result)[0], TextType.LINK)
+        self.assertEqual(types(result)[-1], TextType.IMAGE)
+        # PLAIN separators between every styled segment
+        self.assertEqual(types(result).count(TextType.PLAIN), 4)
 
 
-class TestSplitLinkPassthrough(unittest.TestCase):
-    def test_empty_list_returns_empty(self):
-        self.assertEqual(split_nodes_link([]), [])
-
-    def test_plain_node_with_no_link_unchanged(self):
-        node = TextNode("just plain text", TextType.PLAIN)
-        result = split_nodes_link([node])
+class TestTextToTextNodesPipelineOrdering(unittest.TestCase):
+    def test_bold_markers_inside_image_alt_text_now_preserved(self):
+        # Images are extracted before the "**" pass runs, so markdown-like
+        # characters in the alt text are now part of the image's text
+        # rather than being split out first.
+        result = text_to_textnodes("![**not bold**](url)")
         self.assertEqual(len(result), 1)
-        self.assertEqual(result[0].text, "just plain text")
-        self.assertEqual(result[0].text_type, TextType.PLAIN)
+        self.assertEqual(result[0].text, "**not bold**")
+        self.assertEqual(result[0].text_type, TextType.IMAGE)
+        self.assertEqual(result[0].url, "url")
 
-    def test_plain_node_empty_text_unchanged(self):
-        node = TextNode("", TextType.PLAIN)
-        result = split_nodes_link([node])
+    def test_italic_markers_inside_link_text_now_preserved(self):
+        result = text_to_textnodes("[_not italic_](url)")
         self.assertEqual(len(result), 1)
-        self.assertEqual(result[0].text, "")
-
-    def test_bold_node_passes_through(self):
-        node = TextNode("[looks like a link](url)", TextType.BOLD)
-        result = split_nodes_link([node])
-        self.assertEqual(result, [node])
-
-    def test_image_node_passes_through(self):
-        node = TextNode("[looks like a link too](url)", TextType.IMAGE, "u")
-        result = split_nodes_link([node])
-        self.assertEqual(result, [node])
-
-    def test_link_node_passes_through_unchanged(self):
-        node = TextNode("Google", TextType.LINK, "https://google.com")
-        result = split_nodes_link([node])
-        self.assertEqual(result, [node])
-
-
-class TestSplitLinkBasic(unittest.TestCase):
-    def test_link_in_middle(self):
-        node = TextNode("some text [link](url.com) more text", TextType.PLAIN)
-        result = split_nodes_link([node])
-        self.assertEqual(texts(result), ["some text ", "link", " more text"])
-        self.assertEqual(types(result), [TextType.PLAIN, TextType.LINK, TextType.PLAIN])
-
-    def test_link_at_start(self):
-        node = TextNode("[link](url.com) and more text", TextType.PLAIN)
-        result = split_nodes_link([node])
-        self.assertEqual(texts(result), ["link", " and more text"])
-        self.assertEqual(types(result), [TextType.LINK, TextType.PLAIN])
-
-    def test_link_at_end(self):
-        node = TextNode("some text [link](url.com)", TextType.PLAIN)
-        result = split_nodes_link([node])
-        self.assertEqual(texts(result), ["some text ", "link"])
-        self.assertEqual(types(result), [TextType.PLAIN, TextType.LINK])
-
-    def test_link_only_no_surrounding_text(self):
-        node = TextNode("[link](url.com)", TextType.PLAIN)
-        result = split_nodes_link([node])
-        self.assertEqual(len(result), 1)
-        self.assertEqual(result[0].text, "link")
+        self.assertEqual(result[0].text, "_not italic_")
         self.assertEqual(result[0].text_type, TextType.LINK)
-        self.assertEqual(result[0].url, "url.com")
+        self.assertEqual(result[0].url, "url")
 
-    def test_link_node_url_preserved(self):
-        node = TextNode("[click](https://example.com/page)", TextType.PLAIN)
-        result = split_nodes_link([node])
-        self.assertEqual(result[0].url, "https://example.com/page")
+    def test_bold_text_containing_underscore_not_split_by_italic_pass(self):
+        result = text_to_textnodes("**bold_word**")
+        self.assertEqual(result, [TextNode("bold_word", TextType.BOLD)])
 
+    def test_code_span_wrapping_image_syntax_raises(self):
+        # The image is extracted from the PLAIN node first, stranding the
+        # two backticks in separate fragments with an odd count each.
+        with self.assertRaises(Exception):
+            text_to_textnodes("`![alt](url)`")
 
-class TestSplitLinkMultiple(unittest.TestCase):
-    def test_two_links_with_reference_example(self):
-        node = TextNode(
-            "This is text with a [link](https://example.com) and another "
-            "[second link](https://example.com/2)",
-            TextType.PLAIN,
-        )
-        new_nodes = split_nodes_link([node])
-        self.assertListEqual(
-            [
-                TextNode("This is text with a ", TextType.PLAIN),
-                TextNode("link", TextType.LINK, "https://example.com"),
-                TextNode(" and another ", TextType.PLAIN),
-                TextNode("second link", TextType.LINK, "https://example.com/2"),
-            ],
-            new_nodes,
-        )
+    def test_code_span_wrapping_link_syntax_raises(self):
+        with self.assertRaises(Exception):
+            text_to_textnodes("`[text](url)`")
 
-    def test_three_links_back_to_back_with_separators(self):
-        node = TextNode("[a](1) [b](2) [c](3)", TextType.PLAIN)
-        result = split_nodes_link([node])
-        self.assertEqual(texts(result), ["a", " ", "b", " ", "c"])
-        self.assertEqual(
-            types(result),
-            [
-                TextType.LINK,
-                TextType.PLAIN,
-                TextType.LINK,
-                TextType.PLAIN,
-                TextType.LINK,
-            ],
-        )
+    def test_code_span_containing_bold_markers_still_protected(self):
+        # Bold/italic delimiters run AFTER code, so this case is unaffected
+        # by the reordering — code still protects its contents.
+        result = text_to_textnodes("`**not bold**`")
+        self.assertEqual(result, [TextNode("**not bold**", TextType.CODE)])
 
-    def test_duplicate_link_markdown_both_extracted(self):
-        node = TextNode("[dup](u) text [dup](u) more", TextType.PLAIN)
-        result = split_nodes_link([node])
-        self.assertEqual(texts(result), ["dup", " text ", "dup", " more"])
-        self.assertEqual(
-            types(result),
-            [TextType.LINK, TextType.PLAIN, TextType.LINK, TextType.PLAIN],
-        )
+    def test_code_and_image_as_separate_non_overlapping_spans_both_work(self):
+        # As long as the code span doesn't wrap the image/link syntax,
+        # both are extracted correctly regardless of order.
+        result = text_to_textnodes("`code` and ![img](u)")
+        self.assertEqual(texts(result), ["code", " and ", "img"])
+        self.assertEqual(types(result), [TextType.CODE, TextType.PLAIN, TextType.IMAGE])
 
 
-class TestSplitLinkMixedList(unittest.TestCase):
-    def test_plain_link_nodes_interleaved_with_other_types(self):
-        nodes = [
-            TextNode("first [a](u1) node", TextType.PLAIN),
-            TextNode("already bold", TextType.BOLD),
-            TextNode("second [b](u2) node", TextType.PLAIN),
-        ]
-        result = split_nodes_link(nodes)
-        self.assertEqual(
-            texts(result),
-            ["first ", "a", " node", "already bold", "second ", "b", " node"],
-        )
-        self.assertEqual(
-            types(result),
-            [
-                TextType.PLAIN,
-                TextType.LINK,
-                TextType.PLAIN,
-                TextType.BOLD,
-                TextType.PLAIN,
-                TextType.LINK,
-                TextType.PLAIN,
-            ],
-        )
+class TestTextToTextNodesErrors(unittest.TestCase):
+    def test_unclosed_bold_delimiter_raises(self):
+        with self.assertRaises(Exception):
+            text_to_textnodes("**unclosed")
 
-    def test_output_order_matches_input_order(self):
-        nodes = [
-            TextNode("[first](u1)", TextType.PLAIN),
-            TextNode("[second](u2)", TextType.PLAIN),
-        ]
-        result = split_nodes_link(nodes)
-        self.assertEqual(texts(result), ["first", "second"])
+    def test_unclosed_italic_delimiter_raises(self):
+        with self.assertRaises(Exception):
+            text_to_textnodes("_unclosed")
 
-    def test_image_only_text_left_untouched_by_link_fn(self):
-        node = TextNode("a ![image](url) only", TextType.PLAIN)
-        result = split_nodes_link([node])
-        self.assertEqual(len(result), 1)
-        self.assertEqual(result[0].text, "a ![image](url) only")
-        self.assertEqual(result[0].text_type, TextType.PLAIN)
+    def test_unclosed_code_delimiter_raises(self):
+        with self.assertRaises(Exception):
+            text_to_textnodes("`unclosed")
+
+    def test_error_message_identifies_delimiter(self):
+        with self.assertRaises(Exception) as ctx:
+            text_to_textnodes("**unclosed")
+        self.assertIn("**", str(ctx.exception))
 
 
 if __name__ == "__main__":
