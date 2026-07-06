@@ -4,7 +4,7 @@ from pathlib import Path
 from markdown import markdown_to_html_node, extract_title
 
 
-def generate_page(from_path: str, template_path: str, dest_path: str):
+def generate_page(from_path: str, template_path: str, dest_path: str, base_path: str):
     print(f"Generating page from {from_path} to {dest_path} using {template_path}")
 
     with open(from_path, "r") as f:
@@ -20,13 +20,15 @@ def generate_page(from_path: str, template_path: str, dest_path: str):
     title = extract_title(markdown)
     template = template.replace("{{ Title }}", title)
     template = template.replace("{{ Content }}", html)
+    template = template.replace('href="/', f'href="{base_path}')
+    template = template.replace('src="/', f'src="{base_path}')
     os.makedirs(os.path.dirname(dest_path), exist_ok=True)
 
     with open(dest_path, "w") as f:
         f.write(template)
 
 
-def generate_site(src_path: str, dest_path: str):
+def generate_site(src_path: str, dest_path: str, base_path: str):
     dir_list = os.listdir(src_path)
     for dir_item in dir_list:
         src_item = os.path.join(src_path, dir_item)
@@ -34,7 +36,10 @@ def generate_site(src_path: str, dest_path: str):
 
         if os.path.isfile(src_item):
             generate_page(
-                src_item, "./template.html", Path(dest_item).with_suffix(".html")
+                src_item,
+                "./template.html",
+                Path(dest_item).with_suffix(".html"),
+                base_path,
             )
         else:
-            generate_site(src_item, dest_item)
+            generate_site(src_item, dest_item, base_path)
