@@ -16,7 +16,7 @@ def dir_copy(src_path: str, dest_path: str):
             dir_copy(src_item, dest_item)
 
 
-def static_copy():
-    if os.path.exists("./public"):
-        shutil.rmtree("./public")
-    dir_copy("./static", "./public")
+def static_copy(src_path: str, dest_path: str):
+    if os.path.exists(dest_path):
+        shutil.rmtree(dest_path)
+    dir_copy(src_path, dest_path)

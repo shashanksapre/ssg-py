@@ -11,7 +11,7 @@ def main():
     basepath = argv[0]
     if basepath == "":
         basepath = "/"
-    static_copy()
+    static_copy("./static", "./docs")
     generate_site(src_path="./content", dest_path="./docs", base_path=basepath)
 
 
