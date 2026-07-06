@@ -1,6 +1,6 @@
 import unittest
 
-from markdown import markdown_to_html_node
+from markdown import markdown_to_html_node, extract_title
 
 
 def html(md: str) -> str:
@@ -316,6 +316,81 @@ class TestMarkdownToHTMLNodeFullDocument(unittest.TestCase):
             "<div><h2>Shopping List</h2><ul><li>apples</li><li>bananas</li></ul></div>",
         )
 
+
+class TestExtractTitleReturnsTitle(unittest.TestCase):
+    def test_simple_h1(self):
+        self.assertEqual(extract_title("# Hello"), "Hello")
+
+    def test_multi_word_title(self):
+        self.assertEqual(extract_title("# Hello World"), "Hello World")
+
+    def test_h1_before_paragraph(self):
+        self.assertEqual(extract_title("# Title\n\nSome paragraph"), "Title")
+
+    def test_h1_after_paragraph(self):
+        self.assertEqual(extract_title("Intro paragraph\n\n# Title"), "Title")
+
+    def test_h1_in_middle_of_document(self):
+        self.assertEqual(
+            extract_title("Intro\n\n# Middle Title\n\nOutro"), "Middle Title"
+        )
+
+    def test_first_h1_returned_when_multiple_present(self):
+        self.assertEqual(extract_title("# First\n\n# Second"), "First")
+
+    def test_title_containing_hash_after_space(self):
+        # split("# ", 1)[1] returns everything after the first "# "
+        self.assertEqual(extract_title("# Hello # World"), "Hello # World")
+
+    def test_h1_preceded_by_h2_block(self):
+        self.assertEqual(extract_title("## Section\n\n# Real Title"), "Real Title")
+
+    def test_h1_with_inline_bold_returned_verbatim(self):
+        # extract_title returns the raw text; inline markdown is not processed
+        self.assertEqual(extract_title("# **bold** title"), "**bold** title")
+
+    def test_h1_with_inline_italic_returned_verbatim(self):
+        self.assertEqual(extract_title("# Title with _italic_"), "Title with _italic_")
+
+    def test_surrounding_blank_lines_stripped_by_blocks(self):
+        self.assertEqual(extract_title("\n\n# Title\n\n"), "Title")
+
+
+class TestExtractTitleRaises(unittest.TestCase):
+    def test_no_heading_raises(self):
+        with self.assertRaises(Exception):
+            extract_title("No heading here")
+
+    def test_empty_string_raises(self):
+        with self.assertRaises(Exception):
+            extract_title("")
+
+    def test_whitespace_only_raises(self):
+        with self.assertRaises(Exception):
+            extract_title("   \n\n   ")
+
+    def test_h2_only_raises(self):
+        # "##" does not startswith("# "), so h2+ are not treated as titles
+        with self.assertRaises(Exception):
+            extract_title("## Not a title")
+
+    def test_h3_only_raises(self):
+        with self.assertRaises(Exception):
+            extract_title("### Also not a title")
+
+    def test_hash_not_at_block_start_raises(self):
+        # A "# " appearing mid-paragraph is not a heading block
+        with self.assertRaises(Exception):
+            extract_title("This paragraph mentions # hash but has no h1")
+
+    def test_exception_message_is_descriptive(self):
+        with self.assertRaises(Exception) as ctx:
+            extract_title("No heading")
+        self.assertIn("Heading", str(ctx.exception))
+
+
+if __name__ == "__main__":
+    unittest.main()
 
 if __name__ == "__main__":
     unittest.main()

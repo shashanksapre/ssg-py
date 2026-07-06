@@ -21,9 +21,9 @@ class TextNode:
 
     def __eq__(self, other: "TextNode") -> bool:
         return (
-            self.text == other.text
-            and self.text_type.value == other.text_type.value
-            and self.url == other.url
+                self.text == other.text
+                and self.text_type.value == other.text_type.value
+                and self.url == other.url
         )
 
     def __repr__(self) -> str:
@@ -43,13 +43,13 @@ def text_node_to_html_node(text_node: TextNode) -> LeafNode:
         case TextType.LINK:
             return LeafNode("a", text_node.text, {"href": text_node.url})
         case TextType.IMAGE:
-            return LeafNode("img", None, {"src": text_node.url, "alt": text_node.text})
+            return LeafNode("img", "", {"src": text_node.url, "alt": text_node.text})
         case _:
             raise Exception("text_type not supported")
 
 
 def split_nodes_delimiter(
-    old_nodes: list[TextNode], delimiter: str, text_type: TextType
+        old_nodes: list[TextNode], delimiter: str, text_type: TextType
 ) -> list[TextNode]:
     new_nodes = []
 

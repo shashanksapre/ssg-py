@@ -1,3 +1,4 @@
+import os
 import re
 from enum import Enum
 
@@ -134,3 +135,42 @@ def markdown_to_html_node(markdown) -> HTMLNode:
                 child_nodes.append(ParentNode("ol", list_items))
 
     return ParentNode("div", child_nodes)
+
+
+def extract_title(markdown: str) -> str:
+    blocks = markdown_to_blocks(markdown)
+    for block in blocks:
+        if block.startswith("# "):
+            return block.split("# ", 1)[1]
+    raise Exception("Didn't find any Heading")
+
+
+def generate_page(from_path: str, template_path: str, dest_path: str):
+    print(f"Generating page from {from_path} to {dest_path} using {template_path}")
+
+    with open(from_path, "r") as f:
+        markdown = f.read()
+        f.close()
+
+    with open(template_path, "r") as f:
+        template = f.read()
+        f.close()
+
+    h_node = markdown_to_html_node(markdown)
+    html = h_node.to_html()
+    title = extract_title(markdown)
+    template = template.replace("{{ Title }}", title)
+    template = template.replace("{{ Content }}", html)
+
+    d_parts = dest_path.split("/")
+
+    if len(d_parts) > 1:
+        current = ""
+        for i in range(len(d_parts) - 1):
+            current = os.path.join(current, d_parts[i])
+            if not os.path.exists(current):
+                os.makedirs(current)
+
+    with open(dest_path, "w") as f:
+        f.write(template)
+        f.close()
